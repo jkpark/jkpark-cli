@@ -2,54 +2,61 @@
 
 const { program } = require('commander');
 const inquirer = require('inquirer');
-const { execSync } = require('child_process');
+const path = require('path');
+const os = require('os');
 
-// 패키지 리스트 예시 (형이 원하는 리스트로 나중에 바꿀 수 있어요)
-const packageChoices = [
-  { name: 'React', value: 'react' },
-  { name: 'TypeScript', value: 'typescript' },
-  { name: 'Tailwind CSS', value: 'tailwindcss' },
-  { name: 'Axios', value: 'axios' },
-  { name: 'Zustand', value: 'zustand' },
-  { name: 'Lucide React (Icons)', value: 'lucide-react' }
-];
+async function runInstallWizard() {
+  console.log('\n🐾 jkpark 설치 마법사에 오신 걸 환영합니다!\n');
 
-async function runWizard() {
-  console.log('\n🐾 jkpark 패키지 마법사에 오신 걸 환영합니다!\n');
-  
-  const answers = await inquirer.prompt([
+  // Step 1: Installation target
+  const { target } = await inquirer.prompt([
     {
-      type: 'checkbox',
-      name: 'packages',
-      message: '설치하고 싶은 패키지를 선택하세요:',
-      choices: packageChoices,
-      validate: (answer) => {
-        if (answer.length < 1) {
-          return '최소 하나 이상의 패키지를 선택해야 합니다.';
-        }
-        return true;
-      }
-    },
-    {
-      type: 'confirm',
-      name: 'confirm',
-      message: '선택한 패키지를 현재 폴더에 설치할까요?',
-      default: true
+      type: 'list',
+      name: 'target',
+      message: 'Step 1: Installation target을 선택하세요:',
+      choices: [
+        { name: 'OpenClaw (OpenClaw Global)', value: 'openClaw' },
+        { name: 'Local (Current Directory)', value: 'local' }
+      ]
     }
   ]);
 
-  if (answers.confirm) {
-    const installCmd = `npm install ${answers.packages.join(' ')}`;
-    console.log(`\n🚚 설치 중: ${installCmd}...`);
-    try {
-      execSync(installCmd, { stdio: 'inherit' });
-      console.log('\n✅ 설치가 완료되었습니다! 형, 이제 개발 시작하세요! 🐾');
-    } catch (error) {
-      console.error('\n❌ 설치 중 오류가 발생했습니다.');
-    }
-  } else {
-    console.log('\n👋 설치를 취소했습니다.');
+  let rootPath = process.cwd();
+  if (target === 'openClaw') {
+    // OpenClaw global 폴더 (보통 ~/.openclaw)
+    rootPath = path.join(os.homedir(), '.openclaw');
   }
+
+  // Step 2: Installation Scope
+  const { scope, customPath } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'scope',
+      message: 'Step 2: Installation Scope을 선택하세요:',
+      choices: ['Global', 'Project', 'Custom Path']
+    },
+    {
+      type: 'input',
+      name: 'customPath',
+      message: 'Custom Path를 입력하세요:',
+      when: (answers) => answers.scope === 'Custom Path',
+      validate: (input) => input.trim() !== '' ? true : '경로를 입력해야 합니다.'
+    }
+  ]);
+
+  let finalTargetDir = rootPath;
+
+  if (scope === 'Global') {
+    finalTargetDir = path.join(rootPath, 'global');
+  } else if (scope === 'Project') {
+    finalTargetDir = path.join(rootPath, 'projects');
+  } else if (scope === 'Custom Path') {
+    // Custom Path의 경우 입력받은 값을 그대로 사용하거나 rootPath와 결합
+    finalTargetDir = path.isAbsolute(customPath) ? customPath : path.resolve(rootPath, customPath);
+  }
+
+  console.log(`\n📍 최종 설치 경로 (Target Path): ${finalTargetDir}\n`);
+  console.log('✅ 설치 마법사가 완료되었습니다. 형, 다음 단계를 진행할 준비가 됐어! 🐾');
 }
 
 program
@@ -60,7 +67,7 @@ program
 program
   .command('install')
   .description('패키지 설치 마법사를 실행합니다')
-  .action(runWizard);
+  .action(runInstallWizard);
 
 program.parse(process.argv);
 
