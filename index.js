@@ -72,43 +72,63 @@ async function runInstallWizard() {
     }
   ]);
 
-  // Step 1: Installation target
-  const defaultBaseDir = path.join(os.homedir(), '.openclaw');
-  let suggestedBaseDir = defaultBaseDir;
-  
-  // Check if ~/.openclaw/workspace-jeff (or similar) exists to be more specific
-  const workspacePath = path.join(defaultBaseDir, 'workspace-jeff');
-  if (fs.existsSync(workspacePath)) {
-    suggestedBaseDir = workspacePath;
-  } else if (!fs.existsSync(defaultBaseDir)) {
-    // If .openclaw doesn't exist, fallback to current dir as a safe default
-    suggestedBaseDir = process.cwd();
-  }
-
-  const { targetType } = await inquirer.prompt([
+  // Step 1: Base Target Selection
+  const { baseType } = await inquirer.prompt([
     {
       type: 'list',
-      name: 'targetType',
-      message: 'Step 1: Installation Base Path를 선택하세요:',
+      name: 'baseType',
+      message: '설치 타겟 유형을 선택하세요:',
       choices: [
-        { name: `Default (${suggestedBaseDir})`, value: 'default' },
-        { name: 'Current Directory', value: 'current' },
+        { name: 'OpenClaw', value: 'openclaw' },
         { name: 'Custom Path', value: 'custom' }
       ]
     }
   ]);
 
   let finalTargetDir;
-  if (targetType === 'default') {
-    finalTargetDir = suggestedBaseDir;
-  } else if (targetType === 'current') {
-    finalTargetDir = process.cwd();
+
+  if (baseType === 'openclaw') {
+    const openClawRoot = path.join(os.homedir(), '.openclaw');
+    
+    // Scan for workspaces
+    let workspaces = [];
+    if (fs.existsSync(openClawRoot)) {
+      workspaces = fs.readdirSync(openClawRoot)
+        .filter(f => f.startsWith('workspace-') && fs.statSync(path.join(openClawRoot, f)).isDirectory());
+    }
+
+    const { scope } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'scope',
+        message: 'OpenClaw 설치 범위를 선택하세요:',
+        choices: [
+          { name: 'Global (~/.openclaw/global)', value: path.join(openClawRoot, 'global') },
+          ...workspaces.map(ws => ({ name: `Workspace: ${ws}`, value: path.join(openClawRoot, ws) })),
+          { name: 'Custom Path inside OpenClaw', value: 'custom_inner' }
+        ]
+      }
+    ]);
+
+    if (scope === 'custom_inner') {
+      const { innerPath } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'innerPath',
+          message: 'OpenClaw 내부의 상대 경로를 입력하세요 (예: my-project):',
+          validate: (input) => input.trim() !== '' ? true : '경로를 입력해야 합니다.'
+        }
+      ]);
+      finalTargetDir = path.join(openClawRoot, innerPath);
+    } else {
+      finalTargetDir = scope;
+    }
   } else {
     const { customPath } = await inquirer.prompt([
       {
         type: 'input',
         name: 'customPath',
-        message: 'Custom Path를 입력하세요:',
+        message: '절대 경로 또는 현재 디렉토리 기준 상대 경로를 입력하세요:',
         validate: (input) => input.trim() !== '' ? true : '경로를 입력해야 합니다.'
       }
     ]);
