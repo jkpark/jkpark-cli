@@ -1,51 +1,22 @@
-#!/usr/bin/env node
+import inquirer from 'inquirer';
+import path from 'path';
+import fs from 'fs';
+import fsExtra from 'fs-extra';
+import { PathManager } from '../core/path-manager';
+import { PluginManager } from '../core/plugin-manager';
 
-const { program } = require('commander');
-const inquirer = require('inquirer');
-const path = require('path');
-const os = require('os');
+export async function runInstallWizard(projectRoot: string) {
+  console.log('\n🐾 jkpark 설치 마법사에 오신 걸 환영합니다! (Bun Powered)\n');
 
-const fs = require('fs');
-const fsExtra = require('fs-extra'); // fs-extra for easier recursive copy
+  const pluginManager = new PluginManager(projectRoot);
+  const categoryChoices = await pluginManager.getCategories();
 
-async function getPlugins() {
-  const pluginsDir = path.join(__dirname, 'plugins');
-  if (!fs.existsSync(pluginsDir)) return [];
-
-  const categories = fs.readdirSync(pluginsDir).filter(f => fs.statSync(path.join(pluginsDir, f)).isDirectory());
-  
-  const choices = [];
-  for (const category of categories) {
-    const pluginJsonPath = path.join(pluginsDir, category, 'plugin.json');
-    let config = { name: category, description: 'No description provided' };
-    if (fs.existsSync(pluginJsonPath)) {
-      try {
-        config = { ...config, ...JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8')) };
-      } catch (e) {}
-    }
-    choices.push({ name: `${config.name} (${config.description})`, value: category });
+  if (categoryChoices.length === 0) {
+    console.log('❌ 설치 가능한 플러그인이 없습니다. plugins 폴더를 확인해 주세요.');
+    return;
   }
-  return choices;
-}
 
-async function getSkills(category) {
-  const skillsDir = path.join(__dirname, 'plugins', category, 'skills');
-  if (!fs.existsSync(skillsDir)) return [];
-
-  const skills = fs.readdirSync(skillsDir).filter(f => fs.statSync(path.join(skillsDir, f)).isDirectory());
-  
-  return skills.map(skill => {
-    // Optionally look for a skill-specific metadata file here in the future
-    return { name: skill, value: skill };
-  });
-}
-
-async function runInstallWizard() {
-  console.log('\n🐾 jkpark 설치 마법사에 오신 걸 환영합니다!\n');
-
-  const categoryChoices = await getPlugins();
-
-  // Step 0: Select Category
+  // 1. Category Selection
   const { selectedCategory } = await inquirer.prompt([
     {
       type: 'list',
@@ -55,8 +26,8 @@ async function runInstallWizard() {
     }
   ]);
 
-  // Step 0.1: Select Skills in that category
-  const skillChoices = await getSkills(selectedCategory);
+  // 2. Skill Selection
+  const skillChoices = await pluginManager.getSkills(selectedCategory);
   if (skillChoices.length === 0) {
     console.log(`\n⚠️  ${selectedCategory} 카테고리에 설치 가능한 스킬이 없습니다.`);
     return;
@@ -72,7 +43,7 @@ async function runInstallWizard() {
     }
   ]);
 
-  // Step 1: Base Target Selection
+  // 3. Target Selection
   const { baseType } = await inquirer.prompt([
     {
       type: 'list',
@@ -85,17 +56,11 @@ async function runInstallWizard() {
     }
   ]);
 
-  let finalTargetDir;
+  let finalTargetDir: string;
 
   if (baseType === 'openclaw') {
-    const openClawRoot = path.join(os.homedir(), '.openclaw');
-    
-    // Scan for workspaces
-    let workspaces = [];
-    if (fs.existsSync(openClawRoot)) {
-      workspaces = fs.readdirSync(openClawRoot)
-        .filter(f => f.startsWith('workspace-') && fs.statSync(path.join(openClawRoot, f)).isDirectory());
-    }
+    const openClawRoot = PathManager.getOpenClawRoot();
+    const workspaces = PathManager.getWorkspaces();
 
     const { scope } = await inquirer.prompt([
       {
@@ -104,7 +69,7 @@ async function runInstallWizard() {
         message: 'OpenClaw 설치 범위를 선택하세요:',
         choices: [
           { name: 'Shared Skills (모든 에이전트 공유: ~/.openclaw/skills)', value: path.join(openClawRoot, 'skills') },
-          ...workspaces.map(ws => ({ name: `Workspace: ${ws} (해당 에이전트 전용)`, value: path.join(openClawRoot, ws) })),
+          ...workspaces.map(ws => ({ name: `Workspace: ${ws}`, value: path.join(openClawRoot, ws) })),
           { name: 'Custom Path inside OpenClaw', value: 'custom_inner' }
         ]
       }
@@ -115,7 +80,7 @@ async function runInstallWizard() {
         {
           type: 'input',
           name: 'innerPath',
-          message: 'OpenClaw 내부의 상대 경로를 입력하세요 (예: my-project):',
+          message: 'OpenClaw 내부의 상대 경로를 입력하세요:',
           validate: (input) => input.trim() !== '' ? true : '경로를 입력해야 합니다.'
         }
       ]);
@@ -128,18 +93,16 @@ async function runInstallWizard() {
       {
         type: 'input',
         name: 'customPath',
-        message: '절대 경로 또는 현재 디렉토리 기준 상대 경로를 입력하세요:',
+        message: '설치 경로를 입력하세요:',
         validate: (input) => input.trim() !== '' ? true : '경로를 입력해야 합니다.'
       }
     ]);
-    finalTargetDir = path.isAbsolute(customPath) ? customPath : path.resolve(process.cwd(), customPath);
+    finalTargetDir = PathManager.resolveFinalPath(process.cwd(), customPath);
   }
 
-  // Base path for skills
   const skillsBaseDir = path.join(finalTargetDir, 'skills');
 
   console.log(`\n📍 Base Target Path: ${finalTargetDir}`);
-  console.log(`📂 Category: ${selectedCategory}`);
   console.log(`🛠️  Selected Skills: ${selectedSkills.join(', ')}`);
   console.log(`🚀 Installation Path: ${skillsBaseDir}/{skill_name}\n`);
 
@@ -154,42 +117,24 @@ async function runInstallWizard() {
 
   if (proceed) {
     console.log('\n🚀 설치를 시작합니다...');
-    
     if (!fs.existsSync(skillsBaseDir)) {
       fs.mkdirSync(skillsBaseDir, { recursive: true });
     }
 
     for (const skill of selectedSkills) {
-      const srcDir = path.join(__dirname, 'plugins', selectedCategory, 'skills', skill);
+      const srcDir = pluginManager.getSkillSourcePath(selectedCategory, skill);
       const destDir = path.join(skillsBaseDir, skill);
 
       try {
-        console.log(`- [${skill}] 복사 중: ${srcDir} -> ${destDir}`);
+        console.log(`- [${skill}] 복사 중...`);
         await fsExtra.copy(srcDir, destDir);
         console.log(`  ✅ [${skill}] 설치 완료`);
-      } catch (err) {
+      } catch (err: any) {
         console.error(`  ❌ [${skill}] 설치 실패:`, err.message);
       }
     }
-    
     console.log('\n✅ 모든 작업이 완료되었습니다. 형, 설치가 끝났어! 🐾');
   } else {
     console.log('\n❌ 설치가 취소되었습니다.');
   }
-}
-
-program
-  .name('jkpark')
-  .description('JK Park의 개인용 패키지 관리 도구')
-  .version('1.0.0');
-
-program
-  .command('install')
-  .description('패키지 설치 마법사를 실행합니다')
-  .action(runInstallWizard);
-
-program.parse(process.argv);
-
-if (!process.argv.slice(2).length) {
-  program.outputHelp();
 }
