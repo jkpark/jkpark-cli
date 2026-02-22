@@ -115,9 +115,13 @@ async function runInstallWizard() {
     finalTargetDir = path.isAbsolute(customPath) ? customPath : path.resolve(rootPath, customPath);
   }
 
-  console.log(`\n📍 최종 설치 경로 (Target Path): ${finalTargetDir}`);
-  console.log(`📂 카테고리: ${selectedCategory}`);
-  console.log(`🛠️  선택된 스킬: ${selectedSkills.join(', ')}\n`);
+  // Base path for skills
+  const skillsBaseDir = path.join(finalTargetDir, 'skills');
+
+  console.log(`\n📍 Base Target Path: ${finalTargetDir}`);
+  console.log(`📂 Category: ${selectedCategory}`);
+  console.log(`🛠️  Selected Skills: ${selectedSkills.join(', ')}`);
+  console.log(`🚀 Installation Path: ${skillsBaseDir}/{skill_name}\n`);
 
   const { proceed } = await inquirer.prompt([
     {
@@ -131,13 +135,13 @@ async function runInstallWizard() {
   if (proceed) {
     console.log('\n🚀 설치를 시작합니다...');
     
-    if (!fs.existsSync(finalTargetDir)) {
-      fs.mkdirSync(finalTargetDir, { recursive: true });
+    if (!fs.existsSync(skillsBaseDir)) {
+      fs.mkdirSync(skillsBaseDir, { recursive: true });
     }
 
     for (const skill of selectedSkills) {
       const srcDir = path.join(__dirname, 'plugins', selectedCategory, 'skills', skill);
-      const destDir = path.join(finalTargetDir, skill);
+      const destDir = path.join(skillsBaseDir, skill);
 
       try {
         console.log(`- [${skill}] 복사 중: ${srcDir} -> ${destDir}`);
