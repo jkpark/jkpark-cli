@@ -12,33 +12,63 @@ async function getPlugins() {
   const pluginsDir = path.join(__dirname, 'plugins');
   if (!fs.existsSync(pluginsDir)) return [];
 
-  const dirs = fs.readdirSync(pluginsDir).filter(f => fs.statSync(path.join(pluginsDir, f)).isDirectory());
+  const categories = fs.readdirSync(pluginsDir).filter(f => fs.statSync(path.join(pluginsDir, f)).isDirectory());
   
-  return dirs.map(dir => {
-    const pluginJsonPath = path.join(pluginsDir, dir, 'plugin.json');
-    let config = { name: dir, description: 'No description provided' };
+  const choices = [];
+  for (const category of categories) {
+    const pluginJsonPath = path.join(pluginsDir, category, 'plugin.json');
+    let config = { name: category, description: 'No description provided' };
     if (fs.existsSync(pluginJsonPath)) {
       try {
         config = { ...config, ...JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8')) };
       } catch (e) {}
     }
-    return { name: `${config.name} (${config.description})`, value: dir };
+    choices.push({ name: `${config.name} (${config.description})`, value: category });
+  }
+  return choices;
+}
+
+async function getSkills(category) {
+  const skillsDir = path.join(__dirname, 'plugins', category, 'skills');
+  if (!fs.existsSync(skillsDir)) return [];
+
+  const skills = fs.readdirSync(skillsDir).filter(f => fs.statSync(path.join(skillsDir, f)).isDirectory());
+  
+  return skills.map(skill => {
+    // Optionally look for a skill-specific metadata file here in the future
+    return { name: skill, value: skill };
   });
 }
 
 async function runInstallWizard() {
   console.log('\n🐾 jkpark 설치 마법사에 오신 걸 환영합니다!\n');
 
-  const pluginChoices = await getPlugins();
+  const categoryChoices = await getPlugins();
 
-  // Step 0: Select Plugins
-  const { selectedPlugins } = await inquirer.prompt([
+  // Step 0: Select Category
+  const { selectedCategory } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'selectedCategory',
+      message: '설치할 플러그인 카테고리를 선택하세요:',
+      choices: categoryChoices
+    }
+  ]);
+
+  // Step 0.1: Select Skills in that category
+  const skillChoices = await getSkills(selectedCategory);
+  if (skillChoices.length === 0) {
+    console.log(`\n⚠️  ${selectedCategory} 카테고리에 설치 가능한 스킬이 없습니다.`);
+    return;
+  }
+
+  const { selectedSkills } = await inquirer.prompt([
     {
       type: 'checkbox',
-      name: 'selectedPlugins',
-      message: '설치할 플러그인을 선택하세요:',
-      choices: pluginChoices,
-      validate: (answer) => answer.length > 0 ? true : '최소 하나 이상의 플러그인을 선택해야 합니다.'
+      name: 'selectedSkills',
+      message: '설치할 스킬들을 선택하세요:',
+      choices: skillChoices,
+      validate: (answer) => answer.length > 0 ? true : '최소 하나 이상의 스킬을 선택해야 합니다.'
     }
   ]);
 
@@ -57,11 +87,9 @@ async function runInstallWizard() {
 
   let rootPath = process.cwd();
   if (target === 'openClaw') {
-    // OpenClaw global 폴더 (보통 ~/.openclaw)
     rootPath = path.join(os.homedir(), '.openclaw');
   }
 
-  // Step 2: Installation Scope
   const { scope, customPath } = await inquirer.prompt([
     {
       type: 'list',
@@ -79,24 +107,23 @@ async function runInstallWizard() {
   ]);
 
   let finalTargetDir = rootPath;
-
   if (scope === 'Global') {
     finalTargetDir = path.join(rootPath, 'global');
   } else if (scope === 'Project') {
     finalTargetDir = path.join(rootPath, 'projects');
   } else if (scope === 'Custom Path') {
-    // Custom Path의 경우 입력받은 값을 그대로 사용하거나 rootPath와 결합
     finalTargetDir = path.isAbsolute(customPath) ? customPath : path.resolve(rootPath, customPath);
   }
 
   console.log(`\n📍 최종 설치 경로 (Target Path): ${finalTargetDir}`);
-  console.log(`📦 선택된 플러그인: ${selectedPlugins.join(', ')}\n`);
+  console.log(`📂 카테고리: ${selectedCategory}`);
+  console.log(`🛠️  선택된 스킬: ${selectedSkills.join(', ')}\n`);
 
   const { proceed } = await inquirer.prompt([
     {
       type: 'confirm',
       name: 'proceed',
-      message: '위 설정대로 설치를 진행할까요? (테스트 모드: 실제 복사 수행)',
+      message: '위 설정대로 설치를 진행할까요?',
       default: true
     }
   ]);
@@ -104,22 +131,20 @@ async function runInstallWizard() {
   if (proceed) {
     console.log('\n🚀 설치를 시작합니다...');
     
-    // Ensure the target directory exists
     if (!fs.existsSync(finalTargetDir)) {
       fs.mkdirSync(finalTargetDir, { recursive: true });
     }
 
-    for (const plugin of selectedPlugins) {
-      const srcDir = path.join(__dirname, 'plugins', plugin);
-      const destDir = path.join(finalTargetDir, plugin);
+    for (const skill of selectedSkills) {
+      const srcDir = path.join(__dirname, 'plugins', selectedCategory, 'skills', skill);
+      const destDir = path.join(finalTargetDir, skill);
 
       try {
-        console.log(`- [${plugin}] 복사 중: ${srcDir} -> ${destDir}`);
-        // 실제 복사 수행 (fs-extra 사용)
+        console.log(`- [${skill}] 복사 중: ${srcDir} -> ${destDir}`);
         await fsExtra.copy(srcDir, destDir);
-        console.log(`  ✅ [${plugin}] 설치 완료`);
+        console.log(`  ✅ [${skill}] 설치 완료`);
       } catch (err) {
-        console.error(`  ❌ [${plugin}] 설치 실패:`, err.message);
+        console.error(`  ❌ [${skill}] 설치 실패:`, err.message);
       }
     }
     
