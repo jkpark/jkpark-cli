@@ -103,8 +103,8 @@ async function runInstallWizard() {
         name: 'scope',
         message: 'OpenClaw 설치 범위를 선택하세요:',
         choices: [
-          { name: 'Global (~/.openclaw/global)', value: path.join(openClawRoot, 'global') },
-          ...workspaces.map(ws => ({ name: `Workspace: ${ws}`, value: path.join(openClawRoot, ws) })),
+          { name: 'Shared Skills (모든 에이전트 공유: ~/.openclaw/skills)', value: path.join(openClawRoot, 'skills') },
+          ...workspaces.map(ws => ({ name: `Workspace: ${ws} (해당 에이전트 전용)`, value: path.join(openClawRoot, ws) })),
           { name: 'Custom Path inside OpenClaw', value: 'custom_inner' }
         ]
       }
