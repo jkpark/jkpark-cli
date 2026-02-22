@@ -73,46 +73,46 @@ async function runInstallWizard() {
   ]);
 
   // Step 1: Installation target
-  const { target } = await inquirer.prompt([
+  const defaultBaseDir = path.join(os.homedir(), '.openclaw');
+  let suggestedBaseDir = defaultBaseDir;
+  
+  // Check if ~/.openclaw/workspace-jeff (or similar) exists to be more specific
+  const workspacePath = path.join(defaultBaseDir, 'workspace-jeff');
+  if (fs.existsSync(workspacePath)) {
+    suggestedBaseDir = workspacePath;
+  } else if (!fs.existsSync(defaultBaseDir)) {
+    // If .openclaw doesn't exist, fallback to current dir as a safe default
+    suggestedBaseDir = process.cwd();
+  }
+
+  const { targetType } = await inquirer.prompt([
     {
       type: 'list',
-      name: 'target',
-      message: 'Step 1: Installation target을 선택하세요:',
+      name: 'targetType',
+      message: 'Step 1: Installation Base Path를 선택하세요:',
       choices: [
-        { name: 'OpenClaw (OpenClaw Global)', value: 'openClaw' },
-        { name: 'Local (Current Directory)', value: 'local' }
+        { name: `Default (${suggestedBaseDir})`, value: 'default' },
+        { name: 'Current Directory', value: 'current' },
+        { name: 'Custom Path', value: 'custom' }
       ]
     }
   ]);
 
-  let rootPath = process.cwd();
-  if (target === 'openClaw') {
-    rootPath = path.join(os.homedir(), '.openclaw');
-  }
-
-  const { scope, customPath } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'scope',
-      message: 'Step 2: Installation Scope을 선택하세요:',
-      choices: ['Global', 'Project', 'Custom Path']
-    },
-    {
-      type: 'input',
-      name: 'customPath',
-      message: 'Custom Path를 입력하세요:',
-      when: (answers) => answers.scope === 'Custom Path',
-      validate: (input) => input.trim() !== '' ? true : '경로를 입력해야 합니다.'
-    }
-  ]);
-
-  let finalTargetDir = rootPath;
-  if (scope === 'Global') {
-    finalTargetDir = path.join(rootPath, 'global');
-  } else if (scope === 'Project') {
-    finalTargetDir = path.join(rootPath, 'projects');
-  } else if (scope === 'Custom Path') {
-    finalTargetDir = path.isAbsolute(customPath) ? customPath : path.resolve(rootPath, customPath);
+  let finalTargetDir;
+  if (targetType === 'default') {
+    finalTargetDir = suggestedBaseDir;
+  } else if (targetType === 'current') {
+    finalTargetDir = process.cwd();
+  } else {
+    const { customPath } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'customPath',
+        message: 'Custom Path를 입력하세요:',
+        validate: (input) => input.trim() !== '' ? true : '경로를 입력해야 합니다.'
+      }
+    ]);
+    finalTargetDir = path.isAbsolute(customPath) ? customPath : path.resolve(process.cwd(), customPath);
   }
 
   // Base path for skills
