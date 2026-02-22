@@ -6,6 +6,7 @@ const path = require('path');
 const os = require('os');
 
 const fs = require('fs');
+const fsExtra = require('fs-extra'); // fs-extra for easier recursive copy
 
 async function getPlugins() {
   const pluginsDir = path.join(__dirname, 'plugins');
@@ -90,7 +91,42 @@ async function runInstallWizard() {
 
   console.log(`\n📍 최종 설치 경로 (Target Path): ${finalTargetDir}`);
   console.log(`📦 선택된 플러그인: ${selectedPlugins.join(', ')}\n`);
-  console.log('✅ 설치 마법사가 완료되었습니다. 형, 다음 단계를 진행할 준비가 됐어! 🐾');
+
+  const { proceed } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'proceed',
+      message: '위 설정대로 설치를 진행할까요? (테스트 모드: 실제 복사 수행)',
+      default: true
+    }
+  ]);
+
+  if (proceed) {
+    console.log('\n🚀 설치를 시작합니다...');
+    
+    // Ensure the target directory exists
+    if (!fs.existsSync(finalTargetDir)) {
+      fs.mkdirSync(finalTargetDir, { recursive: true });
+    }
+
+    for (const plugin of selectedPlugins) {
+      const srcDir = path.join(__dirname, 'plugins', plugin);
+      const destDir = path.join(finalTargetDir, plugin);
+
+      try {
+        console.log(`- [${plugin}] 복사 중: ${srcDir} -> ${destDir}`);
+        // 실제 복사 수행 (fs-extra 사용)
+        await fsExtra.copy(srcDir, destDir);
+        console.log(`  ✅ [${plugin}] 설치 완료`);
+      } catch (err) {
+        console.error(`  ❌ [${plugin}] 설치 실패:`, err.message);
+      }
+    }
+    
+    console.log('\n✅ 모든 작업이 완료되었습니다. 형, 설치가 끝났어! 🐾');
+  } else {
+    console.log('\n❌ 설치가 취소되었습니다.');
+  }
 }
 
 program
