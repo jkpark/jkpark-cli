@@ -34,7 +34,9 @@ export class PluginManager {
       if (fs.existsSync(pluginJsonPath)) {
         try {
           config = { ...config, ...JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8')) };
-        } catch (e) {}
+        } catch (e) {
+          console.warn(`Failed to parse plugin config at ${pluginJsonPath}:`, e);
+        }
       }
       return { ...config, value: dir };
     });
