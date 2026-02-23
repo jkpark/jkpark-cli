@@ -25699,13 +25699,18 @@ class PathManager {
   static getOpenClawRoot() {
     return path2.join(os2.homedir(), ".openclaw");
   }
-  static getWorkspaces() {
-    const root = this.getOpenClawRoot();
+  static getClaudeRoot() {
+    return path2.join(os2.homedir(), ".claude");
+  }
+  static getGitHubRoot() {
+    return path2.join(os2.homedir(), ".config", "gh");
+  }
+  static getWorkspaces(root) {
     if (!fs.existsSync(root))
       return [];
     return fs.readdirSync(root).filter((f) => {
       const fullPath = path2.join(root, f);
-      return f.startsWith("workspace-") && fs.statSync(fullPath).isDirectory();
+      return (f.startsWith("workspace-") || f.startsWith("project-")) && fs.statSync(fullPath).isDirectory();
     });
   }
   static resolveFinalPath(baseDir, relativeOrAbsolute) {
@@ -25742,7 +25747,22 @@ class PluginManager {
     if (!fs2.existsSync(skillsDir))
       return [];
     const skills = fs2.readdirSync(skillsDir).filter((f) => fs2.statSync(path3.join(skillsDir, f)).isDirectory());
-    return skills.map((skill) => ({ name: skill, value: skill }));
+    return skills.map((skill) => {
+      const skillPath = path3.join(skillsDir, skill, "SKILL.md");
+      let description = "No description provided";
+      if (fs2.existsSync(skillPath)) {
+        const content = fs2.readFileSync(skillPath, "utf8");
+        const match = content.match(/^description:\s*(.*)$/m);
+        if (match && match[1]) {
+          description = match[1].trim();
+        }
+      }
+      return {
+        name: skill,
+        description,
+        value: skill
+      };
+    });
   }
   getSkillSourcePath(category, skill) {
     return path3.join(this.pluginsDir, category, "skills", skill);
@@ -25752,7 +25772,7 @@ class PluginManager {
 // src/commands/install.ts
 async function runInstallWizard(projectRoot) {
   console.log(`
-\uD83D\uDC3E jkpark 설치 마법사에 오신 걸 환영합니다! (Bun Powered)
+\uD83D\uDC3E jkpark 설치 마법사에 오신 걸 환영합니다!
 `);
   const pluginManager = new PluginManager(projectRoot);
   const categoryChoices = await pluginManager.getCategories();
@@ -25760,16 +25780,28 @@ async function runInstallWizard(projectRoot) {
     console.log("❌ 설치 가능한 플러그인이 없습니다. plugins 폴더를 확인해 주세요.");
     return;
   }
+  const { targetType } = await dist_default14.prompt([
+    {
+      type: "list",
+      name: "targetType",
+      message: "설치 타겟 유형을 선택하세요:",
+      choices: [
+        { name: "OpenClaw", value: "openclaw" },
+        { name: "Claude", value: "claude" },
+        { name: "GitHub", value: "github" }
+      ]
+    }
+  ]);
   const { selectedCategory } = await dist_default14.prompt([
     {
       type: "list",
       name: "selectedCategory",
       message: "설치할 플러그인 카테고리를 선택하세요:",
-      choices: categoryChoices
+      choices: categoryChoices.map((c) => ({ name: `${c.name} (${c.description})`, value: c.value }))
     }
   ]);
-  const skillChoices = await pluginManager.getSkills(selectedCategory);
-  if (skillChoices.length === 0) {
+  const skills = await pluginManager.getSkills(selectedCategory);
+  if (skills.length === 0) {
     console.log(`
 ⚠️  ${selectedCategory} 카테고리에 설치 가능한 스킬이 없습니다.`);
     return;
@@ -25779,51 +25811,42 @@ async function runInstallWizard(projectRoot) {
       type: "checkbox",
       name: "selectedSkills",
       message: "설치할 스킬들을 선택하세요:",
-      choices: skillChoices,
+      choices: skills.map((s) => ({ name: `${s.name} - ${s.description}`, value: s.value })),
       validate: (answer) => answer.length > 0 ? true : "최소 하나 이상의 스킬을 선택해야 합니다."
     }
   ]);
-  const { baseType } = await dist_default14.prompt([
+  let rootPath;
+  if (targetType === "openclaw") {
+    rootPath = PathManager.getOpenClawRoot();
+  } else if (targetType === "claude") {
+    rootPath = PathManager.getClaudeRoot();
+  } else {
+    rootPath = PathManager.getGitHubRoot();
+  }
+  const workspaces = PathManager.getWorkspaces(rootPath);
+  const scopeChoices = [
+    { name: "Current Directory (현재 프로젝트)", value: process.cwd() }
+  ];
+  if (targetType === "openclaw") {
+    scopeChoices.push({ name: `Shared Skills (모든 에이전트 공유: ${path4.join(rootPath, "skills")})`, value: path4.join(rootPath, "skills") });
+  } else if (targetType === "claude") {
+    scopeChoices.push({ name: `Global Skills (~/.claude/skills)`, value: path4.join(rootPath, "skills") });
+  } else if (targetType === "github") {
+    scopeChoices.push({ name: `GitHub Extensions (~/.config/gh/extensions)`, value: path4.join(rootPath, "extensions") });
+  }
+  scopeChoices.push(...workspaces.map((ws) => ({ name: `Workspace: ${ws}`, value: path4.join(rootPath, ws) })));
+  scopeChoices.push({ name: "Custom Path (직접 입력)", value: "custom" });
+  const { scope } = await dist_default14.prompt([
     {
       type: "list",
-      name: "baseType",
-      message: "설치 타겟 유형을 선택하세요:",
-      choices: [
-        { name: "OpenClaw", value: "openclaw" },
-        { name: "Custom Path", value: "custom" }
-      ]
+      name: "scope",
+      message: `${targetType} 설치 범위를 선택하세요 (Default: Current Directory):`,
+      choices: scopeChoices,
+      default: 0
     }
   ]);
   let finalTargetDir;
-  if (baseType === "openclaw") {
-    const openClawRoot = PathManager.getOpenClawRoot();
-    const workspaces = PathManager.getWorkspaces();
-    const { scope } = await dist_default14.prompt([
-      {
-        type: "list",
-        name: "scope",
-        message: "OpenClaw 설치 범위를 선택하세요:",
-        choices: [
-          { name: "Shared Skills (모든 에이전트 공유: ~/.openclaw/skills)", value: path4.join(openClawRoot, "skills") },
-          ...workspaces.map((ws) => ({ name: `Workspace: ${ws}`, value: path4.join(openClawRoot, ws) })),
-          { name: "Custom Path inside OpenClaw", value: "custom_inner" }
-        ]
-      }
-    ]);
-    if (scope === "custom_inner") {
-      const { innerPath } = await dist_default14.prompt([
-        {
-          type: "input",
-          name: "innerPath",
-          message: "OpenClaw 내부의 상대 경로를 입력하세요:",
-          validate: (input) => input.trim() !== "" ? true : "경로를 입력해야 합니다."
-        }
-      ]);
-      finalTargetDir = path4.join(openClawRoot, innerPath);
-    } else {
-      finalTargetDir = scope;
-    }
-  } else {
+  if (scope === "custom") {
     const { customPath } = await dist_default14.prompt([
       {
         type: "input",
@@ -25833,8 +25856,10 @@ async function runInstallWizard(projectRoot) {
       }
     ]);
     finalTargetDir = PathManager.resolveFinalPath(process.cwd(), customPath);
+  } else {
+    finalTargetDir = scope;
   }
-  const skillsBaseDir = path4.join(finalTargetDir, "skills");
+  const skillsBaseDir = targetType === "github" && scope.endsWith("extensions") ? finalTargetDir : path4.join(finalTargetDir, "skills");
   console.log(`
 \uD83D\uDCCD Base Target Path: ${finalTargetDir}`);
   console.log(`\uD83D\uDEE0️  Selected Skills: ${selectedSkills.join(", ")}`);
@@ -25872,15 +25897,56 @@ async function runInstallWizard(projectRoot) {
 ❌ 설치가 취소되었습니다.`);
   }
 }
+async function runListCommand(projectRoot) {
+  const pluginManager = new PluginManager(projectRoot);
+  const categories = await pluginManager.getCategories();
+  console.log(`
+\uD83D\uDCE6 사용 가능한 플러그인 목록:
+`);
+  for (const cat of categories) {
+    console.log(`\uD83D\uDCC2 ${cat.name} (${cat.description})`);
+    const skills = await pluginManager.getSkills(cat.value);
+    for (const skill of skills) {
+      console.log(`  - ${skill.name}: ${skill.description}`);
+    }
+    console.log("");
+  }
+}
 
 // src/index.ts
 var __filename2 = fileURLToPath(import.meta.url);
 var __dirname2 = path5.dirname(__filename2);
 var projectRoot = process.env.JKPARK_CLI_ROOT || path5.join(__dirname2, "..");
 var program2 = new Command;
-program2.name("jkpark").description("JK Park의 개인용 패키지 관리 도구 (Bun Edition)").version("2.0.0");
+program2.name("jkpark").description("JK Park의 개인용 패키지 관리 도구").version("2.3.0");
 program2.command("install").description("패키지 설치 마법사를 실행합니다").action(() => runInstallWizard(projectRoot));
-program2.parse(process.argv);
+program2.command("list").description("사용 가능한 모든 플러그인과 스킬을 나열합니다").action(() => runListCommand(projectRoot));
+async function runMainMenu() {
+  console.log(`
+\uD83C\uDFD7️  jkpark CLI - Main Menu
+`);
+  const { action } = await dist_default14.prompt([
+    {
+      type: "list",
+      name: "action",
+      message: "수행할 작업을 선택하세요:",
+      choices: [
+        { name: "\uD83D\uDE80 Install Skills (설치 마법사)", value: "install" },
+        { name: "\uD83D\uDCE6 List Available (목록 보기)", value: "list" },
+        { name: "❌ Exit (종료)", value: "exit" }
+      ]
+    }
+  ]);
+  if (action === "install") {
+    await runInstallWizard(projectRoot);
+  } else if (action === "list") {
+    await runListCommand(projectRoot);
+  } else {
+    process.exit(0);
+  }
+}
 if (!process.argv.slice(2).length) {
-  program2.outputHelp();
+  runMainMenu().catch(console.error);
+} else {
+  program2.parse(process.argv);
 }

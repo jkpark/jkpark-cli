@@ -9,6 +9,7 @@ export interface PluginConfig {
 
 export interface SkillInfo {
   name: string;
+  description: string;
   value: string;
 }
 
@@ -16,8 +17,6 @@ export class PluginManager {
   private pluginsDir: string;
 
   constructor(baseDir: string) {
-    // In production bundle, __dirname might be different, 
-    // but for now we assume it's relative to the binary or we pass it in.
     this.pluginsDir = path.join(baseDir, 'plugins');
   }
 
@@ -49,7 +48,25 @@ export class PluginManager {
       fs.statSync(path.join(skillsDir, f)).isDirectory()
     );
 
-    return skills.map(skill => ({ name: skill, value: skill }));
+    return skills.map(skill => {
+      const skillPath = path.join(skillsDir, skill, 'SKILL.md');
+      let description = 'No description provided';
+      
+      if (fs.existsSync(skillPath)) {
+        const content = fs.readFileSync(skillPath, 'utf8');
+        // Simple regex to extract description from frontmatter
+        const match = content.match(/^description:\s*(.*)$/m);
+        if (match && match[1]) {
+          description = match[1].trim();
+        }
+      }
+      
+      return { 
+        name: skill, 
+        description,
+        value: skill 
+      };
+    });
   }
 
   getSkillSourcePath(category: string, skill: string): string {

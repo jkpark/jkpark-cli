@@ -1,31 +1,58 @@
 import { Command } from 'commander';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { runInstallWizard } from './commands/install';
+import inquirer from 'inquirer';
+import { runInstallWizard, runListCommand } from './commands/install';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// In a bundled environment, we need to know where the 'plugins' are.
-// If bundled, they might be relative to the binary or we might expect them 
-// in a specific location. For now, let's assume they are relative to 
-// where the command is RUN from or a fixed project root.
 const projectRoot = process.env.JKPARK_CLI_ROOT || path.join(__dirname, '..');
 
 const program = new Command();
 
 program
   .name('jkpark')
-  .description('JK Park의 개인용 패키지 관리 도구 (Bun Edition)')
-  .version('2.0.0');
+  .description('JK Park의 개인용 패키지 관리 도구')
+  .version('2.3.0');
 
 program
   .command('install')
   .description('패키지 설치 마법사를 실행합니다')
   .action(() => runInstallWizard(projectRoot));
 
-program.parse(process.argv);
+program
+  .command('list')
+  .description('사용 가능한 모든 플러그인과 스킬을 나열합니다')
+  .action(() => runListCommand(projectRoot));
 
+async function runMainMenu() {
+  console.log('\n🏗️  jkpark CLI - Main Menu\n');
+  
+  const { action } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'action',
+      message: '수행할 작업을 선택하세요:',
+      choices: [
+        { name: '🚀 Install Skills (설치 마법사)', value: 'install' },
+        { name: '📦 List Available (목록 보기)', value: 'list' },
+        { name: '❌ Exit (종료)', value: 'exit' }
+      ]
+    }
+  ]);
+
+  if (action === 'install') {
+    await runInstallWizard(projectRoot);
+  } else if (action === 'list') {
+    await runListCommand(projectRoot);
+  } else {
+    process.exit(0);
+  }
+}
+
+// If no command is provided, show interactive main menu
 if (!process.argv.slice(2).length) {
-  program.outputHelp();
+  runMainMenu().catch(console.error);
+} else {
+  program.parse(process.argv);
 }

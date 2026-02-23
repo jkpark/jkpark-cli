@@ -1,6 +1,6 @@
 {
   "name": "jkpark",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "description": "JK Park's Personal Package Manager (Bun Powered)",
   "type": "module",
   "scripts": {
@@ -17,8 +17,12 @@
     "inquirer": "^13.3.0"
   },
   "bin": {
-    "jkpark": "./dist/index.js"
+    "jkpark": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "plugins"
+  ],
   "devDependencies": {
     "@types/commander": "^2.12.5",
     "@types/fs-extra": "^11.0.4",
