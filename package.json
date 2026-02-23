@@ -1,20 +1,33 @@
 {
   "name": "jkpark",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "2.2.0",
+  "description": "JK Park's Personal Package Manager (Bun Powered)",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "bun build ./src/index.ts --outdir ./dist --target node --bundle",
+    "dev": "bun run ./src/index.ts",
+    "test": "echo \"Error: no test specified\" | exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "Jeff",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "commander": "^14.0.3",
-    "inquirer": "^8.2.7"
+    "fs-extra": "^11.3.3",
+    "inquirer": "^13.3.0"
   },
   "bin": {
-    "jkpark": "index.js"
-  }
+    "jkpark": "./dist/index.js"
+  },
+  "devDependencies": {
+    "@types/commander": "^2.12.5",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^25.3.0",
+    "typescript": "^5.9.3"
+  },
+  "files": [
+    "dist",
+    "plugins"
+  ]
 }
