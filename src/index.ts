@@ -50,9 +50,10 @@ async function runMainMenu() {
   }
 }
 
-// If no command is provided, show interactive main menu
-if (!process.argv.slice(2).length) {
-  runMainMenu().catch(console.error);
-} else {
-  program.parse(process.argv);
-}
+// Make the interactive menu the default action when no subcommand is provided.
+program.action(async () => {
+  await runMainMenu();
+});
+
+// Parse arguments (if a subcommand like `install` or `list` is provided, commander will dispatch it).
+program.parse(process.argv);
