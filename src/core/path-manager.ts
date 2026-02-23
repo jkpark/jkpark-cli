@@ -18,15 +18,23 @@ export class PathManager {
   static getWorkspaces(root: string): string[] {
     if (!fs.existsSync(root)) return [];
 
+    let entries: string[];
     try {
-      return fs.readdirSync(root).filter(f => {
-        const fullPath = path.join(root, f);
-        // List all non-hidden directories as potential targets
-        return !f.startsWith('.') && fs.statSync(fullPath).isDirectory();
-      });
+      entries = fs.readdirSync(root);
     } catch (e) {
       return [];
     }
+
+    return entries.filter(f => {
+      if (f.startsWith('.')) return false;
+      const fullPath = path.join(root, f);
+      try {
+        return fs.statSync(fullPath).isDirectory();
+      } catch {
+        // Skip entries that cannot be stat'ed (e.g., broken symlinks, permission issues)
+        return false;
+      }
+    });
   }
 
   static resolveFinalPath(baseDir: string, relativeOrAbsolute: string): string {
