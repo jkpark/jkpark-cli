@@ -1,7 +1,6 @@
 import { Command } from 'commander';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import inquirer from 'inquirer';
 import { runInstallWizard, runListCommand } from './commands/install';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,34 +24,9 @@ program
   .description('사용 가능한 모든 플러그인과 스킬을 나열합니다')
   .action(() => runListCommand(projectRoot));
 
-async function runMainMenu() {
-  console.log('\n🏗️  jkpark CLI - Main Menu\n');
-  
-  const { action } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'action',
-      message: '수행할 작업을 선택하세요:',
-      choices: [
-        { name: '🚀 Install Skills (설치 마법사)', value: 'install' },
-        { name: '📦 List Available (목록 보기)', value: 'list' },
-        { name: '❌ Exit (종료)', value: 'exit' }
-      ]
-    }
-  ]);
-
-  if (action === 'install') {
-    await runInstallWizard(projectRoot);
-  } else if (action === 'list') {
-    await runListCommand(projectRoot);
-  } else {
-    process.exit(0);
-  }
-}
-
-// If no command is provided, show interactive main menu
+// If no command is provided, show usage
 if (!process.argv.slice(2).length) {
-  runMainMenu().catch(console.error);
+  program.outputHelp();
 } else {
   program.parse(process.argv);
 }

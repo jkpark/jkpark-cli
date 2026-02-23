@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { createRequire } from "node:module";
 var __create = Object.create;
 var __getProtoOf = Object.getPrototypeOf;
@@ -25708,14 +25707,22 @@ class PathManager {
   static getWorkspaces(root) {
     if (!fs.existsSync(root))
       return [];
+    let entries;
     try {
-      return fs.readdirSync(root).filter((f) => {
-        const fullPath = path2.join(root, f);
-        return !f.startsWith(".") && fs.statSync(fullPath).isDirectory();
-      });
+      entries = fs.readdirSync(root);
     } catch (e) {
       return [];
     }
+    return entries.filter((f) => {
+      if (f.startsWith("."))
+        return false;
+      const fullPath = path2.join(root, f);
+      try {
+        return fs.statSync(fullPath).isDirectory();
+      } catch {
+        return false;
+      }
+    });
   }
   static resolveFinalPath(baseDir, relativeOrAbsolute) {
     return path2.isAbsolute(relativeOrAbsolute) ? relativeOrAbsolute : path2.resolve(baseDir, relativeOrAbsolute);
@@ -25741,7 +25748,9 @@ class PluginManager {
       if (fs2.existsSync(pluginJsonPath)) {
         try {
           config = { ...config, ...JSON.parse(fs2.readFileSync(pluginJsonPath, "utf8")) };
-        } catch (e) {}
+        } catch (e) {
+          console.warn(`Failed to parse plugin config at ${pluginJsonPath}:`, e);
+        }
       }
       return { ...config, value: dir };
     });
@@ -25750,7 +25759,7 @@ class PluginManager {
     const skillsDir = path3.join(this.pluginsDir, category, "skills");
     if (!fs2.existsSync(skillsDir))
       return [];
-    const skills = fs2.readdirSync(skillsDir).filter((f) => fs2.statSync(path3.join(skillsDir, f)).isDirectory());
+    const skills = fs2.readdirSync(skillsDir, { withFileTypes: true }).filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name);
     return skills.map((skill) => {
       const skillPath = path3.join(skillsDir, skill, "SKILL.md");
       let description = "No description provided";
@@ -25931,32 +25940,8 @@ var program2 = new Command;
 program2.name("jkpark").description("JK Park의 개인용 패키지 관리 도구").version("2.3.0");
 program2.command("install").description("패키지 설치 마법사를 실행합니다").action(() => runInstallWizard(projectRoot));
 program2.command("list").description("사용 가능한 모든 플러그인과 스킬을 나열합니다").action(() => runListCommand(projectRoot));
-async function runMainMenu() {
-  console.log(`
-\uD83C\uDFD7️  jkpark CLI - Main Menu
-`);
-  const { action } = await dist_default14.prompt([
-    {
-      type: "list",
-      name: "action",
-      message: "수행할 작업을 선택하세요:",
-      choices: [
-        { name: "\uD83D\uDE80 Install Skills (설치 마법사)", value: "install" },
-        { name: "\uD83D\uDCE6 List Available (목록 보기)", value: "list" },
-        { name: "❌ Exit (종료)", value: "exit" }
-      ]
-    }
-  ]);
-  if (action === "install") {
-    await runInstallWizard(projectRoot);
-  } else if (action === "list") {
-    await runListCommand(projectRoot);
-  } else {
-    process.exit(0);
-  }
-}
 if (!process.argv.slice(2).length) {
-  runMainMenu().catch(console.error);
+  program2.outputHelp();
 } else {
   program2.parse(process.argv);
 }
