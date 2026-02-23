@@ -44,9 +44,10 @@ export class PluginManager {
     const skillsDir = path.join(this.pluginsDir, category, 'skills');
     if (!fs.existsSync(skillsDir)) return [];
 
-    const skills = fs.readdirSync(skillsDir).filter(f => 
-      fs.statSync(path.join(skillsDir, f)).isDirectory()
-    );
+    const skills = fs
+      .readdirSync(skillsDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name);
 
     return skills.map(skill => {
       const skillPath = path.join(skillsDir, skill, 'SKILL.md');
