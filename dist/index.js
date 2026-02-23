@@ -25786,9 +25786,9 @@ async function runInstallWizard(projectRoot) {
       name: "targetType",
       message: "설치 타겟 유형을 선택하세요:",
       choices: [
-        { name: "OpenClaw", value: "openclaw" },
-        { name: "Claude", value: "claude" },
-        { name: "GitHub", value: "github" }
+        { name: "\uD83C\uDFD7️  OpenClaw (OpenClaw Agents & Ecosystem)", value: "openclaw" },
+        { name: "\uD83E\uDD16 Claude (Claude Code CLI & Skills)", value: "claude" },
+        { name: "\uD83D\uDC19 GitHub (GitHub CLI Extensions)", value: "github" }
       ]
     }
   ]);
@@ -25797,7 +25797,10 @@ async function runInstallWizard(projectRoot) {
       type: "list",
       name: "selectedCategory",
       message: "설치할 플러그인 카테고리를 선택하세요:",
-      choices: categoryChoices.map((c) => ({ name: `${c.name} (${c.description})`, value: c.value }))
+      choices: categoryChoices.map((c) => ({
+        name: `${c.name.padEnd(15)} - ${c.description}`,
+        value: c.value
+      }))
     }
   ]);
   const skills = await pluginManager.getSkills(selectedCategory);
@@ -25810,8 +25813,11 @@ async function runInstallWizard(projectRoot) {
     {
       type: "checkbox",
       name: "selectedSkills",
-      message: "설치할 스킬들을 선택하세요:",
-      choices: skills.map((s) => ({ name: `${s.name} - ${s.description}`, value: s.value })),
+      message: "설치할 스킬들을 선택하세요 (Space로 선택, Enter로 완료):",
+      choices: skills.map((s) => ({
+        name: `${s.name.padEnd(25)} - ${s.description}`,
+        value: s.value
+      })),
       validate: (answer) => answer.length > 0 ? true : "최소 하나 이상의 스킬을 선택해야 합니다."
     }
   ]);
