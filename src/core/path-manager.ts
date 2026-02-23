@@ -18,10 +18,15 @@ export class PathManager {
   static getWorkspaces(root: string): string[] {
     if (!fs.existsSync(root)) return [];
 
-    return fs.readdirSync(root).filter(f => {
-      const fullPath = path.join(root, f);
-      return (f.startsWith('workspace-') || f.startsWith('project-')) && fs.statSync(fullPath).isDirectory();
-    });
+    try {
+      return fs.readdirSync(root).filter(f => {
+        const fullPath = path.join(root, f);
+        // List all non-hidden directories as potential targets
+        return !f.startsWith('.') && fs.statSync(fullPath).isDirectory();
+      });
+    } catch (e) {
+      return [];
+    }
   }
 
   static resolveFinalPath(baseDir: string, relativeOrAbsolute: string): string {

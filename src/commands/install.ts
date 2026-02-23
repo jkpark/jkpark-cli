@@ -21,11 +21,11 @@ export async function runInstallWizard(projectRoot: string) {
     {
       type: 'list',
       name: 'targetType',
-      message: '설치 타겟 유형을 선택하세요:',
+      message: '설치할 서비스(Target)를 선택하세요:',
       choices: [
-        { name: '🏗️  OpenClaw (OpenClaw Agents & Ecosystem)', value: 'openclaw' },
-        { name: '🤖 Claude (Claude Code CLI & Skills)', value: 'claude' },
-        { name: '🐙 GitHub (GitHub CLI Extensions)', value: 'github' }
+        { name: '🏗️  OpenClaw'.padEnd(15) + ' - OpenClaw Agents & Shared Skills', value: 'openclaw' },
+        { name: '🤖 Claude'.padEnd(15) + ' - Claude Code CLI & Global Skills', value: 'claude' },
+        { name: '🐙 GitHub'.padEnd(15) + ' - GitHub CLI Extensions (gh-extension)', value: 'github' }
       ]
     }
   ]);

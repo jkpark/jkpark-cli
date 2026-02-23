@@ -25708,10 +25708,14 @@ class PathManager {
   static getWorkspaces(root) {
     if (!fs.existsSync(root))
       return [];
-    return fs.readdirSync(root).filter((f) => {
-      const fullPath = path2.join(root, f);
-      return (f.startsWith("workspace-") || f.startsWith("project-")) && fs.statSync(fullPath).isDirectory();
-    });
+    try {
+      return fs.readdirSync(root).filter((f) => {
+        const fullPath = path2.join(root, f);
+        return !f.startsWith(".") && fs.statSync(fullPath).isDirectory();
+      });
+    } catch (e) {
+      return [];
+    }
   }
   static resolveFinalPath(baseDir, relativeOrAbsolute) {
     return path2.isAbsolute(relativeOrAbsolute) ? relativeOrAbsolute : path2.resolve(baseDir, relativeOrAbsolute);
@@ -25784,11 +25788,11 @@ async function runInstallWizard(projectRoot) {
     {
       type: "list",
       name: "targetType",
-      message: "설치 타겟 유형을 선택하세요:",
+      message: "설치할 서비스(Target)를 선택하세요:",
       choices: [
-        { name: "\uD83C\uDFD7️  OpenClaw (OpenClaw Agents & Ecosystem)", value: "openclaw" },
-        { name: "\uD83E\uDD16 Claude (Claude Code CLI & Skills)", value: "claude" },
-        { name: "\uD83D\uDC19 GitHub (GitHub CLI Extensions)", value: "github" }
+        { name: "\uD83C\uDFD7️  OpenClaw".padEnd(15) + " - OpenClaw Agents & Shared Skills", value: "openclaw" },
+        { name: "\uD83E\uDD16 Claude".padEnd(15) + " - Claude Code CLI & Global Skills", value: "claude" },
+        { name: "\uD83D\uDC19 GitHub".padEnd(15) + " - GitHub CLI Extensions (gh-extension)", value: "github" }
       ]
     }
   ]);
