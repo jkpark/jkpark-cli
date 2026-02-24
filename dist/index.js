@@ -25687,42 +25687,21 @@ var dist_default14 = inquirer;
 // src/commands/install.ts
 var import_fs_extra = __toESM(require_lib4(), 1);
 import path4 from "path";
-import fs3 from "fs";
+import fs2 from "fs";
 
 // src/core/path-manager.ts
 import path2 from "path";
 import os2 from "os";
-import fs from "fs";
 
 class PathManager {
-  static getOpenClawRoot() {
-    return path2.join(os2.homedir(), ".openclaw");
+  static getOpenClawWorkspaceRoot() {
+    return path2.join(os2.homedir(), ".openclaw", "workspace", "skills");
   }
-  static getClaudeRoot() {
-    return path2.join(os2.homedir(), ".claude");
+  static getAntigravityRoot(cwd) {
+    return path2.join(cwd, ".agent", "skills");
   }
-  static getGitHubRoot() {
-    return path2.join(os2.homedir(), ".config", "gh");
-  }
-  static getWorkspaces(root) {
-    if (!fs.existsSync(root))
-      return [];
-    let entries;
-    try {
-      entries = fs.readdirSync(root);
-    } catch (e) {
-      return [];
-    }
-    return entries.filter((f) => {
-      if (f.startsWith("."))
-        return false;
-      const fullPath = path2.join(root, f);
-      try {
-        return fs.statSync(fullPath).isDirectory();
-      } catch {
-        return false;
-      }
-    });
+  static getJkparkAgentRoot() {
+    return path2.join(os2.homedir(), ".jkpark", "agent", "skills");
   }
   static resolveFinalPath(baseDir, relativeOrAbsolute) {
     return path2.isAbsolute(relativeOrAbsolute) ? relativeOrAbsolute : path2.resolve(baseDir, relativeOrAbsolute);
@@ -25730,7 +25709,7 @@ class PathManager {
 }
 
 // src/core/plugin-manager.ts
-import fs2 from "fs";
+import fs from "fs";
 import path3 from "path";
 
 class PluginManager {
@@ -25739,15 +25718,15 @@ class PluginManager {
     this.pluginsDir = path3.join(baseDir, "plugins");
   }
   async getCategories() {
-    if (!fs2.existsSync(this.pluginsDir))
+    if (!fs.existsSync(this.pluginsDir))
       return [];
-    const dirs = fs2.readdirSync(this.pluginsDir).filter((f) => fs2.statSync(path3.join(this.pluginsDir, f)).isDirectory());
+    const dirs = fs.readdirSync(this.pluginsDir).filter((f) => fs.statSync(path3.join(this.pluginsDir, f)).isDirectory());
     return dirs.map((dir) => {
       const pluginJsonPath = path3.join(this.pluginsDir, dir, "plugin.json");
       let config = { name: dir, description: "No description provided" };
-      if (fs2.existsSync(pluginJsonPath)) {
+      if (fs.existsSync(pluginJsonPath)) {
         try {
-          config = { ...config, ...JSON.parse(fs2.readFileSync(pluginJsonPath, "utf8")) };
+          config = { ...config, ...JSON.parse(fs.readFileSync(pluginJsonPath, "utf8")) };
         } catch (e) {
           console.warn(`Failed to parse plugin config at ${pluginJsonPath}:`, e);
         }
@@ -25757,14 +25736,14 @@ class PluginManager {
   }
   async getSkills(category) {
     const skillsDir = path3.join(this.pluginsDir, category, "skills");
-    if (!fs2.existsSync(skillsDir))
+    if (!fs.existsSync(skillsDir))
       return [];
-    const skills = fs2.readdirSync(skillsDir, { withFileTypes: true }).filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name);
+    const skills = fs.readdirSync(skillsDir, { withFileTypes: true }).filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name);
     return skills.map((skill) => {
       const skillPath = path3.join(skillsDir, skill, "SKILL.md");
       let description = "No description provided";
-      if (fs2.existsSync(skillPath)) {
-        const content = fs2.readFileSync(skillPath, "utf8");
+      if (fs.existsSync(skillPath)) {
+        const content = fs.readFileSync(skillPath, "utf8");
         const match = content.match(/^description:\s*(.*)$/m);
         if (match && match[1]) {
           description = match[1].trim();
@@ -25773,9 +25752,20 @@ class PluginManager {
       return {
         name: skill,
         description,
-        value: skill
+        value: `${category}/${skill}`,
+        category,
+        sourcePath: path3.join(skillsDir, skill)
       };
     });
+  }
+  async getAllSkills() {
+    const categories = await this.getCategories();
+    let allSkills = [];
+    for (const cat of categories) {
+      const skills = await this.getSkills(cat.value);
+      allSkills = allSkills.concat(skills);
+    }
+    return allSkills;
   }
   getSkillSourcePath(category, skill) {
     return path3.join(this.pluginsDir, category, "skills", skill);
@@ -25787,85 +25777,25 @@ async function runInstallWizard(projectRoot) {
   console.log(`
 \uD83D\uDC3E jkpark 설치 마법사에 오신 걸 환영합니다!
 `);
-  const pluginManager = new PluginManager(projectRoot);
-  const categoryChoices = await pluginManager.getCategories();
-  if (categoryChoices.length === 0) {
-    console.log("❌ 설치 가능한 플러그인이 없습니다. plugins 폴더를 확인해 주세요.");
-    return;
-  }
+  const cwd = process.cwd();
   const { targetType } = await dist_default14.prompt([
     {
-      type: "list",
+      type: "select",
       name: "targetType",
       message: "설치할 서비스(Target)를 선택하세요:",
       choices: [
-        { name: "\uD83C\uDFD7️  OpenClaw".padEnd(15) + " - OpenClaw Agents & Shared Skills", value: "openclaw" },
-        { name: "\uD83E\uDD16 Claude".padEnd(15) + " - Claude Code CLI & Global Skills", value: "claude" },
-        { name: "\uD83D\uDC19 GitHub".padEnd(15) + " - GitHub CLI Extensions (gh-extension)", value: "github" }
+        { name: "openclaw (workspace)", value: "openclaw" },
+        { name: "antigravity (workspace)", value: "antigravity" },
+        { name: "custom path", value: "custom" }
       ]
     }
   ]);
-  const { selectedCategory } = await dist_default14.prompt([
-    {
-      type: "list",
-      name: "selectedCategory",
-      message: "설치할 플러그인 카테고리를 선택하세요:",
-      choices: categoryChoices.map((c) => ({
-        name: `${c.name.padEnd(15)} - ${c.description}`,
-        value: c.value
-      }))
-    }
-  ]);
-  const skills = await pluginManager.getSkills(selectedCategory);
-  if (skills.length === 0) {
-    console.log(`
-⚠️  ${selectedCategory} 카테고리에 설치 가능한 스킬이 없습니다.`);
-    return;
-  }
-  const { selectedSkills } = await dist_default14.prompt([
-    {
-      type: "checkbox",
-      name: "selectedSkills",
-      message: "설치할 스킬들을 선택하세요 (Space로 선택, Enter로 완료):",
-      choices: skills.map((s) => ({
-        name: `${s.name.padEnd(25)} - ${s.description}`,
-        value: s.value
-      })),
-      validate: (answer) => answer.length > 0 ? true : "최소 하나 이상의 스킬을 선택해야 합니다."
-    }
-  ]);
-  let rootPath;
+  let targetPath = "";
   if (targetType === "openclaw") {
-    rootPath = PathManager.getOpenClawRoot();
-  } else if (targetType === "claude") {
-    rootPath = PathManager.getClaudeRoot();
+    targetPath = PathManager.getOpenClawWorkspaceRoot();
+  } else if (targetType === "antigravity") {
+    targetPath = PathManager.getAntigravityRoot(cwd);
   } else {
-    rootPath = PathManager.getGitHubRoot();
-  }
-  const workspaces = PathManager.getWorkspaces(rootPath);
-  const scopeChoices = [
-    { name: "Current Directory (현재 프로젝트)", value: process.cwd() }
-  ];
-  if (targetType === "openclaw") {
-    scopeChoices.push({ name: `Shared Skills (모든 에이전트 공유: ${path4.join(rootPath, "skills")})`, value: path4.join(rootPath, "skills") });
-  } else if (targetType === "claude") {
-    scopeChoices.push({ name: `Global Skills (~/.claude/skills)`, value: path4.join(rootPath, "skills") });
-  } else if (targetType === "github") {
-    scopeChoices.push({ name: `GitHub Extensions (~/.config/gh/extensions)`, value: path4.join(rootPath, "extensions") });
-  }
-  scopeChoices.push(...workspaces.map((ws) => ({ name: `Workspace: ${ws}`, value: path4.join(rootPath, ws) })));
-  scopeChoices.push({ name: "Custom Path (직접 입력)", value: "custom" });
-  const { scope } = await dist_default14.prompt([
-    {
-      type: "list",
-      name: "scope",
-      message: `${targetType} 설치 범위를 선택하세요 (Default: Current Directory):`,
-      choices: scopeChoices,
-      default: 0
-    }
-  ]);
-  let finalTargetDir;
-  if (scope === "custom") {
     const { customPath } = await dist_default14.prompt([
       {
         type: "input",
@@ -25874,47 +25804,117 @@ async function runInstallWizard(projectRoot) {
         validate: (input) => input.trim() !== "" ? true : "경로를 입력해야 합니다."
       }
     ]);
-    finalTargetDir = PathManager.resolveFinalPath(process.cwd(), customPath);
-  } else {
-    finalTargetDir = scope;
+    targetPath = PathManager.resolveFinalPath(cwd, customPath);
   }
-  const skillsBaseDir = targetType === "github" && scope.endsWith("extensions") ? finalTargetDir : path4.join(finalTargetDir, "skills");
   console.log(`
-\uD83D\uDCCD Base Target Path: ${finalTargetDir}`);
-  console.log(`\uD83D\uDEE0️  Selected Skills: ${selectedSkills.join(", ")}`);
-  console.log(`\uD83D\uDE80 Installation Path: ${skillsBaseDir}/{skill_name}
-`);
-  const { proceed } = await dist_default14.prompt([
+\uD83D\uDCCD 설정된 Target Path: ${targetPath}`);
+  const { pathConfirm } = await dist_default14.prompt([
     {
       type: "confirm",
-      name: "proceed",
-      message: "위 설정대로 설치를 진행할까요?",
+      name: "pathConfirm",
+      message: "위 경로에 설치하시겠습니까?",
       default: true
     }
   ]);
-  if (proceed) {
-    console.log(`
-\uD83D\uDE80 설치를 시작합니다...`);
-    if (!fs3.existsSync(skillsBaseDir)) {
-      fs3.mkdirSync(skillsBaseDir, { recursive: true });
-    }
-    for (const skill of selectedSkills) {
-      const srcDir = pluginManager.getSkillSourcePath(selectedCategory, skill);
-      const destDir = path4.join(skillsBaseDir, skill);
-      try {
-        console.log(`- [${skill}] 복사 중...`);
-        await import_fs_extra.default.copy(srcDir, destDir);
-        console.log(`  ✅ [${skill}] 설치 완료`);
-      } catch (err) {
-        console.error(`  ❌ [${skill}] 설치 실패:`, err.message);
-      }
-    }
-    console.log(`
-✅ 모든 작업이 완료되었습니다. 형, 설치가 끝났어! \uD83D\uDC3E`);
-  } else {
+  if (!pathConfirm) {
     console.log(`
 ❌ 설치가 취소되었습니다.`);
+    return;
   }
+  const { installOption } = await dist_default14.prompt([
+    {
+      type: "select",
+      name: "installOption",
+      message: "설치 옵션을 선택하세요:",
+      choices: [
+        { name: "Option 1: 직접 설치 (타겟 폴더에 직접 복사)", value: "direct" },
+        { name: "Option 2: 심볼릭 링크로 설치 (~/.jkpark/agent/skills 에 설치 후 링크 생성)", value: "symlink" }
+      ]
+    }
+  ]);
+  const pluginManager = new PluginManager(projectRoot);
+  const allSkills = await pluginManager.getAllSkills();
+  if (allSkills.length === 0) {
+    console.log(`
+⚠️ 설치 가능한 스킬이 없습니다.`);
+    return;
+  }
+  const { selectedSkills } = await dist_default14.prompt([
+    {
+      type: "checkbox",
+      name: "selectedSkills",
+      message: "설치할 스킬들을 선택하세요 (Space로 선택, Enter로 완료):",
+      choices: allSkills.map((s) => ({
+        name: `${s.value.padEnd(25)} - ${s.description}`,
+        value: s.value
+      })),
+      validate: (answer) => answer.length > 0 ? true : "최소 하나 이상의 스킬을 선택해야 합니다."
+    }
+  ]);
+  console.log(`
+\uD83D\uDEE0️ 선택된 스킬 목록:`);
+  selectedSkills.forEach((s) => console.log(`  - ${s}`));
+  const { skillConfirm } = await dist_default14.prompt([
+    {
+      type: "confirm",
+      name: "skillConfirm",
+      message: "위 스킬들을 설치하시겠습니까?",
+      default: true
+    }
+  ]);
+  if (!skillConfirm) {
+    console.log(`
+❌ 설치가 취소되었습니다.`);
+    return;
+  }
+  console.log(`
+\uD83D\uDE80 설치를 시작합니다...`);
+  const jkparkAgentRoot = PathManager.getJkparkAgentRoot();
+  if (installOption === "direct") {
+    if (!fs2.existsSync(targetPath)) {
+      fs2.mkdirSync(targetPath, { recursive: true });
+    }
+  } else {
+    if (!fs2.existsSync(jkparkAgentRoot)) {
+      fs2.mkdirSync(jkparkAgentRoot, { recursive: true });
+    }
+    if (!fs2.existsSync(targetPath)) {
+      fs2.mkdirSync(targetPath, { recursive: true });
+    }
+  }
+  for (const skillValue of selectedSkills) {
+    const skillObj = allSkills.find((s) => s.value === skillValue);
+    if (!skillObj || !skillObj.sourcePath)
+      continue;
+    if (installOption === "direct") {
+      const destDir = path4.join(targetPath, skillObj.name);
+      try {
+        console.log(`- [${skillValue}] 직접 복사 중...`);
+        await import_fs_extra.default.copy(skillObj.sourcePath, destDir);
+        console.log(`  ✅ [${skillValue}] 복사 완료`);
+      } catch (err) {
+        console.error(`  ❌ [${skillValue}] 복사 실패:`, err.message);
+      }
+    } else {
+      const baseDestDir = path4.join(jkparkAgentRoot, skillObj.name);
+      const symlinkDestDir = path4.join(targetPath, skillObj.name);
+      try {
+        console.log(`- [${skillValue}] ~/.jkpark/agent/skills에 복사 중...`);
+        await import_fs_extra.default.copy(skillObj.sourcePath, baseDestDir);
+        console.log(`- [${skillValue}] 심볼릭 링크 생성 중...`);
+        if (fs2.existsSync(symlinkDestDir)) {
+          fs2.rmSync(symlinkDestDir, { recursive: true, force: true });
+        }
+        const symlinkType = process.platform === "win32" ? "junction" : "dir";
+        fs2.symlinkSync(baseDestDir, symlinkDestDir, symlinkType);
+        console.log(`  ✅ [${skillValue}] 링크 설치 완료 (${symlinkType} 방식)`);
+      } catch (err) {
+        console.error(`  ❌ [${skillValue}] 설치 실패:`, err.message);
+      }
+    }
+  }
+  console.log(`
+✅ 모든 작업이 완료되었습니다! \uD83D\uDC3E`);
 }
 async function runListCommand(projectRoot) {
   const pluginManager = new PluginManager(projectRoot);

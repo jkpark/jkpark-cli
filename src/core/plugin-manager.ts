@@ -11,6 +11,8 @@ export interface SkillInfo {
   name: string;
   description: string;
   value: string;
+  category?: string;
+  sourcePath?: string;
 }
 
 export class PluginManager {
@@ -23,14 +25,14 @@ export class PluginManager {
   async getCategories(): Promise<PluginConfig[]> {
     if (!fs.existsSync(this.pluginsDir)) return [];
 
-    const dirs = fs.readdirSync(this.pluginsDir).filter(f => 
+    const dirs = fs.readdirSync(this.pluginsDir).filter(f =>
       fs.statSync(path.join(this.pluginsDir, f)).isDirectory()
     );
 
     return dirs.map(dir => {
       const pluginJsonPath = path.join(this.pluginsDir, dir, 'plugin.json');
       let config = { name: dir, description: 'No description provided' };
-      
+
       if (fs.existsSync(pluginJsonPath)) {
         try {
           config = { ...config, ...JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8')) };
@@ -54,7 +56,7 @@ export class PluginManager {
     return skills.map(skill => {
       const skillPath = path.join(skillsDir, skill, 'SKILL.md');
       let description = 'No description provided';
-      
+
       if (fs.existsSync(skillPath)) {
         const content = fs.readFileSync(skillPath, 'utf8');
         // Simple regex to extract description from frontmatter
@@ -63,13 +65,25 @@ export class PluginManager {
           description = match[1].trim();
         }
       }
-      
-      return { 
-        name: skill, 
+
+      return {
+        name: skill,
         description,
-        value: skill 
+        value: `${category}/${skill}`,
+        category,
+        sourcePath: path.join(skillsDir, skill)
       };
     });
+  }
+
+  async getAllSkills(): Promise<SkillInfo[]> {
+    const categories = await this.getCategories();
+    let allSkills: SkillInfo[] = [];
+    for (const cat of categories) {
+      const skills = await this.getSkills(cat.value);
+      allSkills = allSkills.concat(skills);
+    }
+    return allSkills;
   }
 
   getSkillSourcePath(category: string, skill: string): string {

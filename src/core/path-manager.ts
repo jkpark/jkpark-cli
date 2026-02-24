@@ -3,43 +3,21 @@ import os from 'os';
 import fs from 'fs';
 
 export class PathManager {
-  static getOpenClawRoot(): string {
-    return path.join(os.homedir(), '.openclaw');
+  static getOpenClawWorkspaceRoot(): string {
+    return path.join(os.homedir(), '.openclaw', 'workspace', 'skills');
   }
 
-  static getClaudeRoot(): string {
-    return path.join(os.homedir(), '.claude');
+  static getAntigravityRoot(cwd: string): string {
+    return path.join(cwd, '.agent', 'skills');
   }
 
-  static getGitHubRoot(): string {
-    return path.join(os.homedir(), '.config', 'gh');
-  }
-
-  static getWorkspaces(root: string): string[] {
-    if (!fs.existsSync(root)) return [];
-
-    let entries: string[];
-    try {
-      entries = fs.readdirSync(root);
-    } catch (e) {
-      return [];
-    }
-
-    return entries.filter(f => {
-      if (f.startsWith('.')) return false;
-      const fullPath = path.join(root, f);
-      try {
-        return fs.statSync(fullPath).isDirectory();
-      } catch {
-        // Skip entries that cannot be stat'ed (e.g., broken symlinks, permission issues)
-        return false;
-      }
-    });
+  static getJkparkAgentRoot(): string {
+    return path.join(os.homedir(), '.jkpark', 'agent', 'skills');
   }
 
   static resolveFinalPath(baseDir: string, relativeOrAbsolute: string): string {
-    return path.isAbsolute(relativeOrAbsolute) 
-      ? relativeOrAbsolute 
+    return path.isAbsolute(relativeOrAbsolute)
+      ? relativeOrAbsolute
       : path.resolve(baseDir, relativeOrAbsolute);
   }
 }
