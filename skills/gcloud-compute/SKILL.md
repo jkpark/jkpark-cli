@@ -1,9 +1,9 @@
 ---
-name: gcloud-compute-automation
+name: gcloud-compute
 description: "Automates Google Cloud Compute Engine instance management including setup, instance creation, and SSH connection. Use this skill when the user needs to: (1) Install or configure the gcloud CLI, (2) Create new VM instances, or (3) Connect to existing instances via SSH."
 ---
 
-# GCloud Compute Automation
+# GCloud Compute
 
 This skill provides a consolidated guide for managing Google Cloud Compute Engine instances directly using the `gcloud` CLI.
 

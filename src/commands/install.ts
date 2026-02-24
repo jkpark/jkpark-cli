@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import fsExtra from 'fs-extra';
 import { PathManager } from '../core/path-manager';
-import { PluginManager } from '../core/plugin-manager';
+import { SkillManager } from '../core/skill-manager';
 
 export async function runInstallWizard(projectRoot: string) {
   console.log('\n🐾 jkpark 설치 마법사에 오신 걸 환영합니다!\n');
@@ -65,14 +65,14 @@ export async function runInstallWizard(projectRoot: string) {
       message: '설치 옵션을 선택하세요:',
       choices: [
         { name: 'Option 1: 직접 설치 (타겟 폴더에 직접 복사)', value: 'direct' },
-        { name: 'Option 2: 심볼릭 링크로 설치 (~/.jkpark/agent/skills 에 설치 후 링크 생성)', value: 'symlink' }
+        { name: 'Option 2: 심볼릭 링크로 설치 (~/.jkpark/skills 에 설치 후 링크 생성)', value: 'symlink' }
       ]
     }
   ]);
 
   // Step 4: 설치할 Skills 선택
-  const pluginManager = new PluginManager(projectRoot);
-  const allSkills = await pluginManager.getAllSkills();
+  const skillManager = new SkillManager(projectRoot);
+  const allSkills = await skillManager.getAllSkills();
 
   if (allSkills.length === 0) {
     console.log('\n⚠️ 설치 가능한 스킬이 없습니다.');
@@ -84,10 +84,14 @@ export async function runInstallWizard(projectRoot: string) {
       type: 'checkbox',
       name: 'selectedSkills',
       message: '설치할 스킬들을 선택하세요 (Space로 선택, Enter로 완료):',
-      choices: allSkills.map(s => ({
-        name: `${s.value.padEnd(25)} - ${s.description}`,
-        value: s.value
-      })),
+      choices: allSkills.map(s => {
+        const desc = s.description.length > 65 ? s.description.substring(0, 65) + '...' : s.description;
+        return {
+          name: `${s.value.padEnd(25)} - ${desc}`,
+          value: s.value
+        };
+      }),
+      loop: false,
       validate: (answer) => answer.length > 0 ? true : '최소 하나 이상의 스킬을 선택해야 합니다.'
     }
   ]);
@@ -113,16 +117,16 @@ export async function runInstallWizard(projectRoot: string) {
   // 마무리: 설치(복사/심볼릭) 로직 구현
   console.log('\n🚀 설치를 시작합니다...');
 
-  const jkparkAgentRoot = PathManager.getJkparkAgentRoot();
+  const jkparkSkillsRoot = PathManager.getJkparkSkillsRoot();
 
   if (installOption === 'direct') {
     if (!fs.existsSync(targetPath)) {
       fs.mkdirSync(targetPath, { recursive: true });
     }
   } else {
-    // symlink option: ensure jkpark agent root exists
-    if (!fs.existsSync(jkparkAgentRoot)) {
-      fs.mkdirSync(jkparkAgentRoot, { recursive: true });
+    // symlink option: ensure jkpark skills root exists
+    if (!fs.existsSync(jkparkSkillsRoot)) {
+      fs.mkdirSync(jkparkSkillsRoot, { recursive: true });
     }
     // ensure target path exists to place junctions
     if (!fs.existsSync(targetPath)) {
@@ -145,11 +149,11 @@ export async function runInstallWizard(projectRoot: string) {
       }
     } else {
       // symlink option
-      const baseDestDir = path.join(jkparkAgentRoot, skillObj.name);
+      const baseDestDir = path.join(jkparkSkillsRoot, skillObj.name);
       const symlinkDestDir = path.join(targetPath, skillObj.name);
 
       try {
-        console.log(`- [${skillValue}] ~/.jkpark/agent/skills에 복사 중...`);
+        console.log(`- [${skillValue}] ~/.jkpark/skills에 복사 중...`);
         await fsExtra.copy(skillObj.sourcePath, baseDestDir);
 
         console.log(`- [${skillValue}] 심볼릭 링크 생성 중...`);
@@ -173,17 +177,19 @@ export async function runInstallWizard(projectRoot: string) {
 }
 
 export async function runListCommand(projectRoot: string) {
-  const pluginManager = new PluginManager(projectRoot);
-  const categories = await pluginManager.getCategories();
+  const skillManager = new SkillManager(projectRoot);
+  const allSkills = await skillManager.getAllSkills();
 
-  console.log('\n📦 사용 가능한 플러그인 목록:\n');
+  console.log('\n📦 사용 가능한 스킬 목록:\n');
 
-  for (const cat of categories) {
-    console.log(`📂 ${cat.name} (${cat.description})`);
-    const skills = await pluginManager.getSkills(cat.value);
-    for (const skill of skills) {
-      console.log(`  - ${skill.name}: ${skill.description}`);
-    }
-    console.log('');
+  if (allSkills.length === 0) {
+    console.log('  ⚠️ 설치 가능한 스킬이 없습니다.');
+    return;
   }
+
+  for (const skill of allSkills) {
+    const desc = skill.description.length > 65 ? skill.description.substring(0, 65) + '...' : skill.description;
+    console.log(`  - ${skill.name}: ${desc}`);
+  }
+  console.log('');
 }

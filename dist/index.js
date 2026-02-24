@@ -22714,7 +22714,7 @@ var {
 } = import__.default;
 
 // src/index.ts
-import path5 from "path";
+import path6 from "path";
 import { fileURLToPath } from "url";
 
 // node_modules/@inquirer/core/dist/lib/key.js
@@ -25700,75 +25700,44 @@ class PathManager {
   static getAntigravityRoot(cwd) {
     return path2.join(cwd, ".agent", "skills");
   }
-  static getJkparkAgentRoot() {
-    return path2.join(os2.homedir(), ".jkpark", "agent", "skills");
+  static getJkparkSkillsRoot() {
+    return path2.join(os2.homedir(), ".jkpark", "skills");
   }
   static resolveFinalPath(baseDir, relativeOrAbsolute) {
     return path2.isAbsolute(relativeOrAbsolute) ? relativeOrAbsolute : path2.resolve(baseDir, relativeOrAbsolute);
   }
 }
 
-// src/core/plugin-manager.ts
+// src/core/skill-manager.ts
 import fs from "fs";
 import path3 from "path";
 
-class PluginManager {
-  pluginsDir;
+class SkillManager {
+  skillsDir;
   constructor(baseDir) {
-    this.pluginsDir = path3.join(baseDir, "plugins");
+    this.skillsDir = path3.join(baseDir, "skills");
   }
-  async getCategories() {
-    if (!fs.existsSync(this.pluginsDir))
+  async getAllSkills() {
+    if (!fs.existsSync(this.skillsDir))
       return [];
-    const dirs = fs.readdirSync(this.pluginsDir).filter((f) => fs.statSync(path3.join(this.pluginsDir, f)).isDirectory());
-    return dirs.map((dir) => {
-      const pluginJsonPath = path3.join(this.pluginsDir, dir, "plugin.json");
-      let config = { name: dir, description: "No description provided" };
-      if (fs.existsSync(pluginJsonPath)) {
-        try {
-          config = { ...config, ...JSON.parse(fs.readFileSync(pluginJsonPath, "utf8")) };
-        } catch (e) {
-          console.warn(`Failed to parse plugin config at ${pluginJsonPath}:`, e);
-        }
-      }
-      return { ...config, value: dir };
-    });
-  }
-  async getSkills(category) {
-    const skillsDir = path3.join(this.pluginsDir, category, "skills");
-    if (!fs.existsSync(skillsDir))
-      return [];
-    const skills = fs.readdirSync(skillsDir, { withFileTypes: true }).filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name);
+    const skills = fs.readdirSync(this.skillsDir, { withFileTypes: true }).filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name);
     return skills.map((skill) => {
-      const skillPath = path3.join(skillsDir, skill, "SKILL.md");
+      const skillPath = path3.join(this.skillsDir, skill, "SKILL.md");
       let description = "No description provided";
       if (fs.existsSync(skillPath)) {
         const content = fs.readFileSync(skillPath, "utf8");
         const match = content.match(/^description:\s*(.*)$/m);
         if (match && match[1]) {
-          description = match[1].trim();
+          description = match[1].replace(/^["']|["']$/g, "").trim();
         }
       }
       return {
         name: skill,
         description,
-        value: `${category}/${skill}`,
-        category,
-        sourcePath: path3.join(skillsDir, skill)
+        value: skill,
+        sourcePath: path3.join(this.skillsDir, skill)
       };
     });
-  }
-  async getAllSkills() {
-    const categories = await this.getCategories();
-    let allSkills = [];
-    for (const cat of categories) {
-      const skills = await this.getSkills(cat.value);
-      allSkills = allSkills.concat(skills);
-    }
-    return allSkills;
-  }
-  getSkillSourcePath(category, skill) {
-    return path3.join(this.pluginsDir, category, "skills", skill);
   }
 }
 
@@ -25828,12 +25797,12 @@ async function runInstallWizard(projectRoot) {
       message: "설치 옵션을 선택하세요:",
       choices: [
         { name: "Option 1: 직접 설치 (타겟 폴더에 직접 복사)", value: "direct" },
-        { name: "Option 2: 심볼릭 링크로 설치 (~/.jkpark/agent/skills 에 설치 후 링크 생성)", value: "symlink" }
+        { name: "Option 2: 심볼릭 링크로 설치 (~/.jkpark/skills 에 설치 후 링크 생성)", value: "symlink" }
       ]
     }
   ]);
-  const pluginManager = new PluginManager(projectRoot);
-  const allSkills = await pluginManager.getAllSkills();
+  const skillManager = new SkillManager(projectRoot);
+  const allSkills = await skillManager.getAllSkills();
   if (allSkills.length === 0) {
     console.log(`
 ⚠️ 설치 가능한 스킬이 없습니다.`);
@@ -25844,10 +25813,14 @@ async function runInstallWizard(projectRoot) {
       type: "checkbox",
       name: "selectedSkills",
       message: "설치할 스킬들을 선택하세요 (Space로 선택, Enter로 완료):",
-      choices: allSkills.map((s) => ({
-        name: `${s.value.padEnd(25)} - ${s.description}`,
-        value: s.value
-      })),
+      choices: allSkills.map((s) => {
+        const desc = s.description.length > 65 ? s.description.substring(0, 65) + "..." : s.description;
+        return {
+          name: `${s.value.padEnd(25)} - ${desc}`,
+          value: s.value
+        };
+      }),
+      loop: false,
       validate: (answer) => answer.length > 0 ? true : "최소 하나 이상의 스킬을 선택해야 합니다."
     }
   ]);
@@ -25869,14 +25842,14 @@ async function runInstallWizard(projectRoot) {
   }
   console.log(`
 \uD83D\uDE80 설치를 시작합니다...`);
-  const jkparkAgentRoot = PathManager.getJkparkAgentRoot();
+  const jkparkSkillsRoot = PathManager.getJkparkSkillsRoot();
   if (installOption === "direct") {
     if (!fs2.existsSync(targetPath)) {
       fs2.mkdirSync(targetPath, { recursive: true });
     }
   } else {
-    if (!fs2.existsSync(jkparkAgentRoot)) {
-      fs2.mkdirSync(jkparkAgentRoot, { recursive: true });
+    if (!fs2.existsSync(jkparkSkillsRoot)) {
+      fs2.mkdirSync(jkparkSkillsRoot, { recursive: true });
     }
     if (!fs2.existsSync(targetPath)) {
       fs2.mkdirSync(targetPath, { recursive: true });
@@ -25896,10 +25869,10 @@ async function runInstallWizard(projectRoot) {
         console.error(`  ❌ [${skillValue}] 복사 실패:`, err.message);
       }
     } else {
-      const baseDestDir = path4.join(jkparkAgentRoot, skillObj.name);
+      const baseDestDir = path4.join(jkparkSkillsRoot, skillObj.name);
       const symlinkDestDir = path4.join(targetPath, skillObj.name);
       try {
-        console.log(`- [${skillValue}] ~/.jkpark/agent/skills에 복사 중...`);
+        console.log(`- [${skillValue}] ~/.jkpark/skills에 복사 중...`);
         await import_fs_extra.default.copy(skillObj.sourcePath, baseDestDir);
         console.log(`- [${skillValue}] 심볼릭 링크 생성 중...`);
         if (fs2.existsSync(symlinkDestDir)) {
@@ -25917,29 +25890,97 @@ async function runInstallWizard(projectRoot) {
 ✅ 모든 작업이 완료되었습니다! \uD83D\uDC3E`);
 }
 async function runListCommand(projectRoot) {
-  const pluginManager = new PluginManager(projectRoot);
-  const categories = await pluginManager.getCategories();
+  const skillManager = new SkillManager(projectRoot);
+  const allSkills = await skillManager.getAllSkills();
   console.log(`
-\uD83D\uDCE6 사용 가능한 플러그인 목록:
+\uD83D\uDCE6 사용 가능한 스킬 목록:
 `);
-  for (const cat of categories) {
-    console.log(`\uD83D\uDCC2 ${cat.name} (${cat.description})`);
-    const skills = await pluginManager.getSkills(cat.value);
-    for (const skill of skills) {
-      console.log(`  - ${skill.name}: ${skill.description}`);
+  if (allSkills.length === 0) {
+    console.log("  ⚠️ 설치 가능한 스킬이 없습니다.");
+    return;
+  }
+  for (const skill of allSkills) {
+    const desc = skill.description.length > 65 ? skill.description.substring(0, 65) + "..." : skill.description;
+    console.log(`  - ${skill.name}: ${desc}`);
+  }
+  console.log("");
+}
+
+// src/commands/clean.ts
+import fs3 from "fs";
+import path5 from "path";
+var import_fs_extra2 = __toESM(require_lib4(), 1);
+async function runCleanCommand() {
+  console.log(`
+\uD83E\uDDF9 jkpark 캐시 정리 마법사에 오신 걸 환영합니다!
+`);
+  const jkparkSkillsRoot = PathManager.getJkparkSkillsRoot();
+  const openClawTarget = PathManager.getOpenClawWorkspaceRoot();
+  const antigravityTarget = PathManager.getAntigravityRoot(process.cwd());
+  console.log(`\uD83D\uDCCD 캐시 폴더 경로: ${jkparkSkillsRoot}`);
+  console.log(`\uD83D\uDCCD 타겟 폴더 (openclaw): ${openClawTarget}`);
+  console.log(`\uD83D\uDCCD 타겟 폴더 (antigravity): ${antigravityTarget}`);
+  const { confirmClean } = await dist_default14.prompt([
+    {
+      type: "confirm",
+      name: "confirmClean",
+      message: `위 경로들의 스킬 캐시 공간을 비우고 각 타겟 폴더에 생성된 모든 심볼릭 링크(스킬 연결)를 삭제하시겠습니까?
+  (이 작업은 되돌릴 수 없으며 설치된 스킬 연결이 해제됩니다.)`,
+      default: false
     }
-    console.log("");
+  ]);
+  if (!confirmClean) {
+    console.log(`
+❌ 캐시 비우기가 취소되었습니다.`);
+    return;
+  }
+  try {
+    console.log(`
+\uD83D\uDDD1️ 원본 캐시 삭제 중...`);
+    if (fs3.existsSync(jkparkSkillsRoot)) {
+      import_fs_extra2.default.emptyDirSync(jkparkSkillsRoot);
+      console.log(`  ✨ [${jkparkSkillsRoot}] 내부 비우기 완료`);
+    } else {
+      console.log(`  ✅ 캐시 폴더가 이미 비어있거나 없습니다.`);
+    }
+    console.log(`
+\uD83D\uDDD1️ 타겟 심볼릭 링크 삭제 중...`);
+    const targets = [openClawTarget, antigravityTarget];
+    for (const target of targets) {
+      if (fs3.existsSync(target)) {
+        const items = fs3.readdirSync(target);
+        for (const item of items) {
+          const itemPath = path5.join(target, item);
+          try {
+            const stat = fs3.lstatSync(itemPath);
+            if (stat.isSymbolicLink()) {
+              fs3.rmSync(itemPath, { recursive: true, force: true });
+              console.log(`  \uD83D\uDD17 링크 삭제됨: ${itemPath}`);
+            }
+          } catch (e) {
+            console.log(`  ❌ 링크 삭제 실패: ${itemPath} (${e.message})`);
+          }
+        }
+      }
+    }
+    console.log(`
+✨ 캐시 정리 및 링크 해제 작업이 깔끔하게 완료되었습니다!`);
+  } catch (error) {
+    console.error(`
+❌ 삭제 프로세스 중 에러가 발생했습니다:`, error.message);
   }
 }
 
 // src/index.ts
 var __filename2 = fileURLToPath(import.meta.url);
-var __dirname2 = path5.dirname(__filename2);
-var projectRoot = process.env.JKPARK_CLI_ROOT || path5.join(__dirname2, "..");
+var __dirname2 = path6.dirname(__filename2);
+var projectRoot = process.env.JKPARK_CLI_ROOT || path6.join(__dirname2, "..");
 var program2 = new Command;
-program2.name("jkpark").description("JK Park의 개인용 패키지 관리 도구").version("2.3.0");
+var VERSION = "2.3.2";
+program2.name("jkpark").description("JK Park의 개인용 패키지 관리 도구").version(VERSION);
 program2.command("install").description("패키지 설치 마법사를 실행합니다").action(() => runInstallWizard(projectRoot));
 program2.command("list").description("사용 가능한 모든 플러그인과 스킬을 나열합니다").action(() => runListCommand(projectRoot));
+program2.command("clean").description("설치된 로컬 스킬 캐시(~/.jkpark/skills)를 모두 삭제하여 초기화합니다").action(() => runCleanCommand());
 if (!process.argv.slice(2).length) {
   program2.outputHelp();
 } else {

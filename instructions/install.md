@@ -26,29 +26,13 @@ Option 1 : 직접 설치
 
 Option 2 : 심볼릭 링크로 설치
 
-플러그인들을 `~/.jkpark/agent/skills` 에 설치하고, Target Path에 심볼릭 링크를 생성한다.
+설치할 스킬들을 `~/.jkpark/skills` 에 설치하고, Target Path에 심볼릭 링크를 생성한다.
 
 ## Step 4: 설치할 Skills 선택
 
 설치할 Skills 를 선택하는 단계입니다.
 
-`plugins` 폴더에 있는 모든 스킬을 보여주며, 복수개를 선택할 수 있도록 한다.
-
-plugins 폴더에는, `카테고리/스킬명` 형태로 구성되어 있다.
-
-예시:
-```
-plugins/
-├── category1/
-│   ├── skill1/
-│   ├── skill2/
-│   └── ...
-├── category2/
-│   ├── skill3/
-│   ├── skill4/
-│   └── ...
-└── ...
-```
+`skills` 폴더에 있는 모든 툴을 보여주며, 복수개를 선택할 수 있도록 한다.
 
 ## Step 5: 설치할 Skills 확인
 

@@ -11,8 +11,8 @@ export class PathManager {
     return path.join(cwd, '.agent', 'skills');
   }
 
-  static getJkparkAgentRoot(): string {
-    return path.join(os.homedir(), '.jkpark', 'agent', 'skills');
+  static getJkparkSkillsRoot(): string {
+    return path.join(os.homedir(), '.jkpark', 'skills');
   }
 
   static resolveFinalPath(baseDir: string, relativeOrAbsolute: string): string {
