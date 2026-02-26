@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build project
+        run: bun run build
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/index.js
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+      # Optional: NPM 배포가 필요할 경우 아래 주석을 해제하고 NPM_TOKEN을 설정하세요.
+      # - name: Publish to NPM
+      #   run: |
+      #     npm config set //registry.npmjs.org/:_authToken ${NPM_TOKEN}
+      #     npm publish --access public
+      #   env:
+      #     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
