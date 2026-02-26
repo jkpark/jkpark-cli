@@ -1,6 +1,6 @@
 {
   "name": "jkpark",
-  "version": "2.3.5",
+  "version": "2.3.7",
   "description": "JK Park's Personal Package Manager (Bun Powered)",
   "type": "module",
   "scripts": {
