@@ -78,7 +78,7 @@ jobs:
             dist/index.js
           generate_release_notes: true
           draft: false
-          prerelease: false
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
