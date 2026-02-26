@@ -4,7 +4,7 @@
   "description": "JK Park's Personal Package Manager (Bun Powered)",
   "type": "module",
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target node --bundle",
+    "build": "bun build ./src/index.ts --outdir ./dist --target node --bundle && echo '#!/usr/bin/env node' | cat - ./dist/index.js > ./dist/index.tmp.js && mv ./dist/index.tmp.js ./dist/index.js && chmod +x ./dist/index.js",
     "dev": "bun run ./src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
