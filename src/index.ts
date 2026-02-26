@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { runInstallWizard, runListCommand } from './commands/install';
 import { runCleanCommand } from './commands/clean';
@@ -10,7 +11,9 @@ const projectRoot = process.env.JKPARK_CLI_ROOT || path.join(__dirname, '..');
 
 const program = new Command();
 
-const VERSION = '2.3.2';
+// Read version from package.json instead of hardcoding
+const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
+const VERSION = packageJson.version;
 
 program
   .name('jkpark')
